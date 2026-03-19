@@ -5,6 +5,15 @@ import API from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
+const getColor = (name) => {
+  const colors = ['#4f46e5', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed'];
+  let hash = 0;
+  for (let i = 0; i < name?.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 const Editor = () => {
   const { docId } = useParams();
   const { user, logout } = useAuth();
@@ -17,7 +26,6 @@ const Editor = () => {
   const typingTimeout = useRef(null);
 
   useEffect(() => {
-    // Load document
     const loadDoc = async () => {
       try {
         const { data } = await API.get(`/documents/${docId}`);
@@ -30,12 +38,11 @@ const Editor = () => {
     };
     loadDoc();
 
-    // Setup socket
     socketRef.current = io('http://192.168.1.5:8000', {
       auth: { token: localStorage.getItem('token') },
     });
 
-    socketRef.current.emit('join-document', docId);
+    socketRef.current.emit('join-document', { docId, userName: user?.name });
 
     socketRef.current.on('receive-changes', (newContent) => {
       setContent(newContent);
@@ -54,10 +61,8 @@ const Editor = () => {
     const newContent = e.target.value;
     setContent(newContent);
 
-    // Emit changes to other users
     socketRef.current.emit('send-changes', { docId, content: newContent });
 
-    // Auto save after 2 seconds of no typing
     clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => saveDocument(newContent), 2000);
   };
@@ -86,7 +91,7 @@ const Editor = () => {
       {/* Navbar */}
       <div style={styles.navbar}>
         <div style={styles.navLeft}>
-          <span style={styles.logo}> CollabDocs</span>
+          <span style={styles.logo}>CollabDocs</span>
           <input
             style={styles.titleInput}
             value={title}
@@ -97,15 +102,25 @@ const Editor = () => {
         </div>
         <div style={styles.navRight}>
           <span style={styles.saveStatus}>
-            {saving ? ' Saving...' : 'Saved'}
+            {saving ? 'Saving...' : 'Saved'}
           </span>
-          <div style={styles.onlineUsers}>
-            {onlineUsers.map((u, i) => (
-              <div key={i} style={styles.avatar} title={u}>
-                {u[0]?.toUpperCase()}
-              </div>
-            ))}
-          </div>
+         <div style={styles.onlineUsers}>
+  {onlineUsers.map((u, i) => (
+    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+      <div
+        style={{
+          ...styles.avatar,
+          background: getColor(u.name),
+        }}
+      >
+        {u.name?.[0]?.toUpperCase()}
+      </div>
+      <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600' }}>
+        {u.name?.split(' ')[0]}
+      </span>
+    </div>
+  ))}
+</div>
           <span style={styles.userName}>{user?.name}</span>
           <button style={styles.logoutBtn} onClick={handleLogout}>Logout</button>
         </div>
@@ -126,7 +141,7 @@ const Editor = () => {
       <div style={styles.bottomBar}>
         <span>{content.length} characters</span>
         <span>{content.split(/\s+/).filter(Boolean).length} words</span>
-        <span style={{ color: onlineUsers.length > 1 ? '#22c55e' : '#94a3b8' }}>
+        <span style={{ color: onlineUsers.length > 1 ? '#22c55e' : '#1a1a2e' }}>
           {onlineUsers.length} user{onlineUsers.length !== 1 ? 's' : ''} online
         </span>
       </div>
@@ -139,24 +154,24 @@ const styles = {
   navbar: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '12px 24px', background: 'white',
-    borderBottom: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   },
   navLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
   logo: { fontSize: '20px', fontWeight: '700', color: 'blue' },
   titleInput: {
-      border: 'none', fontSize: '16px', fontWeight: '600',
+    border: 'none', fontSize: '16px', fontWeight: '600',
     color: '#1a1a2e', outline: 'none', padding: '4px 8px',
     borderRadius: '4px', background: 'transparent',
     minWidth: '200px',
   },
   navRight: { display: 'flex', alignItems: 'center', gap: '16px' },
   saveStatus: { fontSize: '13px', color: '#4ae781' },
-  onlineUsers: { display: 'flex', gap: '4px' },
+  onlineUsers: { display: 'flex', gap: '8px', alignItems: 'center' },
   avatar: {
     width: '32px', height: '32px', borderRadius: '50%',
-    background: 'white',
-    color: '#4f46e5', display: 'flex', alignItems: 'center',
+    color: 'white', display: 'flex', alignItems: 'center',
     justifyContent: 'center', fontSize: '13px', fontWeight: '700',
+    cursor: 'pointer',
   },
   userName: { fontSize: '14px', color: '#405c83', fontWeight: '500' },
   logoutBtn: {
@@ -174,8 +189,8 @@ const styles = {
   },
   bottomBar: {
     display: 'flex', gap: '24px', padding: '8px 32px',
-    background: 'white', borderTop: '1px solid #2973d4',
-    fontSize: '12px', color: '#d3e1f5',
+    background: 'white', borderTop: '1px solid #e2e8f0',
+    fontSize: '13px', color: '#1a1a2e', fontWeight: '600',
   },
 };
 

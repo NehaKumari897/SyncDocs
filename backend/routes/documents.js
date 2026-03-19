@@ -49,7 +49,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
     const { content, title } = req.body;
     const document = await Document.findOne({
       _id: req.params.id,
-      owner: req.user.id,
     });
 
     if (!document) {

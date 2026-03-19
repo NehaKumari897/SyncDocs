@@ -27,21 +27,23 @@ app.use('/api/documents', require('./routes/documents'));
 
 // Test route
 app.get('/', (req, res) => {
-  res.json({ message: '✅ CollabDocs Backend Running!' });
+  res.json({ message: 'CollabDocs Backend Running!' });
 });
 
 // Socket.io — Real-time
 const activeUsers = {};
 
 io.on('connection', (socket) => {
-  console.log('🟢 User connected:', socket.id);
+  console.log(' User connected:', socket.id);
 
-  socket.on('join-document', (docId) => {
+  socket.on('join-document', ({ docId, userName }) => {
     socket.join(docId);
+    socket.userName = userName;
+    socket.docId = docId;
     if (!activeUsers[docId]) activeUsers[docId] = [];
-    activeUsers[docId].push(socket.id);
+    activeUsers[docId] = activeUsers[docId].filter(u => u.socketId !== socket.id);
+    activeUsers[docId].push({ socketId: socket.id, name: userName });
     io.to(docId).emit('online-users', activeUsers[docId]);
-    console.log(`User joined document: ${docId}`);
   });
 
   socket.on('send-changes', ({ docId, content }) => {
@@ -50,14 +52,14 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     for (const docId in activeUsers) {
-      activeUsers[docId] = activeUsers[docId].filter(id => id !== socket.id);
+      activeUsers[docId] = activeUsers[docId].filter(u => u.socketId !== socket.id);
       io.to(docId).emit('online-users', activeUsers[docId]);
     }
-    console.log('🔴 User disconnected:', socket.id);
+    console.log('User disconnected:', socket.id);
   });
 });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
