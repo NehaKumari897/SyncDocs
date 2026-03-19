@@ -80,4 +80,8 @@ Start Frontend ->
     Kanika Ekcoshiya  (https://github.com/Kanikaekcoshiya)
     lavanya   (https://github.com/lavanya074)
 
+
+Deliverables - https://drive.google.com/file/d/1hsUNdUcaYQl0E8VB1NB6YSev5a9BA7fA/view?usp=sharing
+
 ------If you'd like to improve this project, feel free to fork the repository and submit a pull request.-------
+
