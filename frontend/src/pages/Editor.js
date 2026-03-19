@@ -14,22 +14,36 @@ const getColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+const LINES_PER_PAGE = 30;
+
 const Editor = () => {
   const { docId } = useParams();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [content, setContent] = useState('');
+  const [pages, setPages] = useState(['']);
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const socketRef = useRef(null);
   const typingTimeout = useRef(null);
+  const textareaRefs = useRef([]);
+
+  const splitIntoPages = (text) => {
+    const lines = text.split('\n');
+    const result = [];
+    for (let i = 0; i < lines.length; i += LINES_PER_PAGE) {
+      result.push(lines.slice(i, i + LINES_PER_PAGE).join('\n'));
+    }
+    return result.length > 0 ? result : [''];
+  };
+
+  const getFullContent = (pagesArr) => pagesArr.join('\n');
 
   useEffect(() => {
     const loadDoc = async () => {
       try {
         const { data } = await API.get(`/documents/${docId}`);
-        setContent(data.content);
+        setPages(splitIntoPages(data.content || ''));
         setTitle(data.title);
       } catch {
         toast.error('Document not found');
@@ -45,33 +59,67 @@ const Editor = () => {
     socketRef.current.emit('join-document', { docId, userName: user?.name });
 
     socketRef.current.on('receive-changes', (newContent) => {
-      setContent(newContent);
+      setPages(splitIntoPages(newContent));
     });
 
     socketRef.current.on('online-users', (users) => {
       setOnlineUsers(users);
     });
 
-    return () => {
-      socketRef.current.disconnect();
-    };
+    return () => socketRef.current.disconnect();
   }, [docId, navigate]);
 
-  const handleChange = (e) => {
-    const newContent = e.target.value;
-    setContent(newContent);
+  const handleChange = (e, pageIndex) => {
+    const newPageContent = e.target.value;
+    const newLines = newPageContent.split('\n');
 
-    socketRef.current.emit('send-changes', { docId, content: newContent });
+    let newPages = [...pages];
+
+    if (newLines.length > LINES_PER_PAGE) {
+      // Overflow — push extra lines to next page
+      const currentPageLines = newLines.slice(0, LINES_PER_PAGE);
+      const overflowLines = newLines.slice(LINES_PER_PAGE);
+      newPages[pageIndex] = currentPageLines.join('\n');
+
+      if (pageIndex + 1 < newPages.length) {
+        newPages[pageIndex + 1] = overflowLines.join('\n') + '\n' + newPages[pageIndex + 1];
+      } else {
+        newPages.push(overflowLines.join('\n'));
+      }
+
+      // Focus next page
+      setTimeout(() => {
+        if (textareaRefs.current[pageIndex + 1]) {
+          textareaRefs.current[pageIndex + 1].focus();
+          textareaRefs.current[pageIndex + 1].setSelectionRange(
+            overflowLines.join('\n').length,
+            overflowLines.join('\n').length
+          );
+        }
+      }, 0);
+    } else {
+      newPages[pageIndex] = newPageContent;
+    }
+
+    // Remove empty last pages
+    while (newPages.length > 1 && newPages[newPages.length - 1].trim() === '') {
+      newPages.pop();
+    }
+
+    setPages(newPages);
+
+    const fullContent = getFullContent(newPages);
+    socketRef.current.emit('send-changes', { docId, content: fullContent });
 
     clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => saveDocument(newContent), 2000);
+    typingTimeout.current = setTimeout(() => saveDocument(fullContent), 2000);
   };
 
-  const saveDocument = async (currentContent) => {
+  const saveDocument = async (fullContent) => {
     setSaving(true);
     try {
       await API.put(`/documents/${docId}`, {
-        content: currentContent || content,
+        content: fullContent,
         title,
       });
     } catch {
@@ -86,6 +134,8 @@ const Editor = () => {
     navigate('/login');
   };
 
+  const fullContent = getFullContent(pages);
+
   return (
     <div style={styles.container}>
       {/* Navbar */}
@@ -96,7 +146,7 @@ const Editor = () => {
             style={styles.titleInput}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => saveDocument()}
+            onBlur={() => saveDocument(fullContent)}
             placeholder="Document title..."
           />
         </div>
@@ -104,43 +154,44 @@ const Editor = () => {
           <span style={styles.saveStatus}>
             {saving ? 'Saving...' : 'Saved'}
           </span>
-         <div style={styles.onlineUsers}>
-  {onlineUsers.map((u, i) => (
-    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-      <div
-        style={{
-          ...styles.avatar,
-          background: getColor(u.name),
-        }}
-      >
-        {u.name?.[0]?.toUpperCase()}
-      </div>
-      <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600' }}>
-        {u.name?.split(' ')[0]}
-      </span>
-    </div>
-  ))}
-</div>
+          <div style={styles.onlineUsers}>
+            {onlineUsers.map((u, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <div style={{ ...styles.avatar, background: getColor(u.name) }} title={u.name}>
+                  {u.name?.[0]?.toUpperCase()}
+                </div>
+                <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600' }}>
+                  {u.name?.split(' ')[0]}
+                </span>
+              </div>
+            ))}
+          </div>
           <span style={styles.userName}>{user?.name}</span>
           <button style={styles.logoutBtn} onClick={handleLogout}>Logout</button>
         </div>
       </div>
 
-      {/* Editor */}
+      {/* Pages */}
       <div style={styles.editorContainer}>
-        <textarea
-          style={styles.editor}
-          value={content}
-          onChange={handleChange}
-          placeholder="Start writing your document here... Changes will sync in real-time with all collaborators!"
-          spellCheck={true}
-        />
+        {pages.map((pageContent, index) => (
+          <div key={index} style={styles.page}>
+            <textarea
+              ref={(el) => (textareaRefs.current[index] = el)}
+              style={styles.editor}
+              value={pageContent}
+              onChange={(e) => handleChange(e, index)}
+              placeholder={index === 0 ? 'Start writing here...' : ''}
+              spellCheck={true}
+            />
+            <div style={styles.pageNumber}>Page {index + 1}</div>
+          </div>
+        ))}
       </div>
 
       {/* Bottom bar */}
       <div style={styles.bottomBar}>
-        <span>{content.length} characters</span>
-        <span>{content.split(/\s+/).filter(Boolean).length} words</span>
+        <span>{fullContent.length} characters</span>
+        <span>{fullContent.split(/\s+/).filter(Boolean).length} words</span>
         <span style={{ color: onlineUsers.length > 1 ? '#22c55e' : '#1a1a2e' }}>
           {onlineUsers.length} user{onlineUsers.length !== 1 ? 's' : ''} online
         </span>
@@ -150,19 +201,22 @@ const Editor = () => {
 };
 
 const styles = {
-  container: { display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc' },
+  container: {
+    display: 'flex', flexDirection: 'column',
+    height: '100vh', background: '#e8eaed',
+  },
   navbar: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '12px 24px', background: 'white',
     borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    zIndex: 10,
   },
   navLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
   logo: { fontSize: '20px', fontWeight: '700', color: 'blue' },
   titleInput: {
     border: 'none', fontSize: '16px', fontWeight: '600',
     color: '#1a1a2e', outline: 'none', padding: '4px 8px',
-    borderRadius: '4px', background: 'transparent',
-    minWidth: '200px',
+    borderRadius: '4px', background: 'transparent', minWidth: '200px',
   },
   navRight: { display: 'flex', alignItems: 'center', gap: '16px' },
   saveStatus: { fontSize: '13px', color: '#4ae781' },
@@ -171,7 +225,6 @@ const styles = {
     width: '32px', height: '32px', borderRadius: '50%',
     color: 'white', display: 'flex', alignItems: 'center',
     justifyContent: 'center', fontSize: '13px', fontWeight: '700',
-    cursor: 'pointer',
   },
   userName: { fontSize: '14px', color: '#405c83', fontWeight: '500' },
   logoutBtn: {
@@ -179,13 +232,42 @@ const styles = {
     border: 'none', borderRadius: '6px', cursor: 'pointer',
     fontSize: '13px', fontWeight: '600',
   },
-  editorContainer: { flex: 1, padding: '32px', display: 'flex', justifyContent: 'center' },
+  editorContainer: {
+    flex: 1, padding: '32px 0',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', background: '#e8eaed',
+    overflowY: 'auto', gap: '24px',
+  },
+  page: {
+    width: '816px',
+    height: '1056px',
+    background: 'white',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+    borderRadius: '2px',
+    position: 'relative',
+    padding: '72px 80px',
+    boxSizing: 'border-box',
+    flexShrink: 0,
+  },
   editor: {
-    width: '100%', maxWidth: '860px', height: '100%',
-    padding: '40px', fontSize: '16px', lineHeight: '1.8',
-    border: '1px solid #a8b3c3', borderRadius: '12px',
-    background: 'white', resize: 'none', outline: 'none',
-    fontFamily: 'Georgia, serif', boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+    width: '100%',
+    height: '100%',
+    padding: '0',
+    fontSize: '16px',
+    lineHeight: '1.8',
+    border: 'none',
+    background: 'transparent',
+    resize: 'none',
+    outline: 'none',
+    fontFamily: 'Georgia, serif',
+    boxSizing: 'border-box',
+    color: '#1a1a2e',
+    overflow: 'hidden',
+  },
+  pageNumber: {
+    position: 'absolute',
+    bottom: '24px', right: '40px',
+    fontSize: '12px', color: '#94a3b8',
   },
   bottomBar: {
     display: 'flex', gap: '24px', padding: '8px 32px',
