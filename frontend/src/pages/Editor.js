@@ -139,23 +139,23 @@ const styles = {
   navbar: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '12px 24px', background: 'white',
-    borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    borderBottom: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   },
   navLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
-  logo: { fontSize: '20px', fontWeight: '700', color: '#667eea' },
+  logo: { fontSize: '20px', fontWeight: '700', color: 'blue' },
   titleInput: {
-    border: 'none', fontSize: '16px', fontWeight: '600',
+      border: 'none', fontSize: '16px', fontWeight: '600',
     color: '#1a1a2e', outline: 'none', padding: '4px 8px',
     borderRadius: '4px', background: 'transparent',
     minWidth: '200px',
   },
   navRight: { display: 'flex', alignItems: 'center', gap: '16px' },
-  saveStatus: { fontSize: '13px', color: '#64748b' },
+  saveStatus: { fontSize: '13px', color: '#11d857' },
   onlineUsers: { display: 'flex', gap: '4px' },
   avatar: {
     width: '32px', height: '32px', borderRadius: '50%',
-    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-    color: 'white', display: 'flex', alignItems: 'center',
+    background: 'white',
+    color: '#4f46e5', display: 'flex', alignItems: 'center',
     justifyContent: 'center', fontSize: '13px', fontWeight: '700',
   },
   userName: { fontSize: '14px', color: '#475569', fontWeight: '500' },
@@ -168,14 +168,14 @@ const styles = {
   editor: {
     width: '100%', maxWidth: '860px', height: '100%',
     padding: '40px', fontSize: '16px', lineHeight: '1.8',
-    border: '1px solid #e2e8f0', borderRadius: '12px',
+    border: '1px solid #1c65c4', borderRadius: '12px',
     background: 'white', resize: 'none', outline: 'none',
     fontFamily: 'Georgia, serif', boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
   },
   bottomBar: {
     display: 'flex', gap: '24px', padding: '8px 32px',
     background: 'white', borderTop: '1px solid #e2e8f0',
-    fontSize: '12px', color: '#94a3b8',
+    fontSize: '12px', color: '#0e59c3',
   },
 };
 
